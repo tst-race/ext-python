@@ -27,7 +27,13 @@ import race_ext_builder as builder
 
 def get_cli_arguments():
     """Parse command-line arguments to the script"""
-    parser = builder.get_arg_parser("python", "3.7.16", 1, __file__, [builder.TARGET_ANDROID_x86_64, builder.TARGET_ANDROID_arm64_v8a])
+    parser = builder.get_arg_parser(
+        "python",
+        "3.7.16",
+        1,
+        __file__,
+        [builder.TARGET_ANDROID_x86_64, builder.TARGET_ANDROID_arm64_v8a],
+    )
     parser.add_argument(
         "--libffi-version",
         default="3.3-1",
@@ -53,20 +59,38 @@ if __name__ == "__main__":
     logging.root.info("Installing host python3.7")
     builder.execute(args, ["apt-get", "update", "-y"])
     builder.execute(args, ["add-apt-repository", "ppa:deadsnakes/ppa", "-y"])
-    builder.install_packages(args, [
-        "pkg-config=0.29.1*",
-        "python3.7",
-        "python3.7-dev",
-        "python3.7-distutils",
-        "python3.7-tk",
-    ])
-    builder.execute(args, ["update-alternatives", "--install", "/usr/bin/python3", "python3", "/usr/bin/python3.7", "1"])
-    builder.execute(args, ["update-alternatives", "--set", "python3", "/usr/bin/python3.7"])
+    builder.install_packages(
+        args,
+        [
+            "pkg-config=0.29.1*",
+            "python3.7",
+            "python3.7-dev",
+            "python3.7-distutils",
+            "python3.7-tk",
+        ],
+    )
+    builder.execute(
+        args,
+        [
+            "update-alternatives",
+            "--install",
+            "/usr/bin/python3",
+            "python3",
+            "/usr/bin/python3.7",
+            "1",
+        ],
+    )
+    builder.execute(
+        args, ["update-alternatives", "--set", "python3", "/usr/bin/python3.7"]
+    )
 
-    builder.install_ext(args, [
-        ("libffi", args.libffi_version),
-        ("openssl", args.openssl_version),
-    ])
+    builder.install_ext(
+        args,
+        [
+            ("libffi", args.libffi_version),
+            ("openssl", args.openssl_version),
+        ],
+    )
 
     builder.fetch_source(
         args=args,
@@ -77,7 +101,9 @@ if __name__ == "__main__":
     source_dir = os.path.join(args.source_dir, f"Python-{args.version}")
     env = builder.create_standard_envvars(args)
     env["CFLAGS"] = "-fPIC"
-    env["LDFLAGS"] = f"-R/data/data/com.twosix.race/python3.7/lib-dynload -L{args.install_prefix}/lib/ -lffi"
+    env[
+        "LDFLAGS"
+    ] = f"-R/data/data/com.twosix.race/python3.7/lib-dynload -L{args.install_prefix}/lib/ -lffi"
     env["CXXFLAGS"] = "-fPIC -Wl,--export-dynamic -Wl,-lffi"
     env["OPENSSL_INCLUDES"] = f"{args.install_prefix}/include/"
     env["HAVE_X509_VERIFY_PARAM_SET1_HOST"] = "1"
@@ -97,29 +123,46 @@ if __name__ == "__main__":
     )
 
     logging.root.info("Configuring build")
-    build = "x86_64-pc-linux-gnu" if "x86" in os.uname().machine else "aarch64-pc-linux-gnu"
+    build = (
+        "x86_64-pc-linux-gnu" if "x86" in os.uname().machine else "aarch64-pc-linux-gnu"
+    )
     target = "x86_64-linux-android" if "x86" in args.target else "aarch64-linux-android"
-    builder.execute(args, [
-        "./configure",
-        "--prefix=/",
-        f"--host={target}",
-        f"--build={build}",
-        f"--target={target}",
-        "--enable-shared",
-        "--disable-ipv6",
-        "--with-system-ffi",
-    ], cwd=source_dir, env=env)
+    builder.execute(
+        args,
+        [
+            "./configure",
+            "--prefix=/",
+            f"--host={target}",
+            f"--build={build}",
+            f"--target={target}",
+            "--enable-shared",
+            "--disable-ipv6",
+            "--with-system-ffi",
+        ],
+        cwd=source_dir,
+        env=env,
+    )
 
     logging.root.info("Building")
-    builder.execute(args, [
-        "make",
-        "-j",
-        args.num_threads,
-    ], cwd=source_dir, env=env)
-    builder.execute(args, [
-        "make",
-        f"DESTDIR={args.install_dir}",
-        "install",
-    ], cwd=source_dir, env=env)
+    builder.execute(
+        args,
+        [
+            "make",
+            "-j",
+            args.num_threads,
+        ],
+        cwd=source_dir,
+        env=env,
+    )
+    builder.execute(
+        args,
+        [
+            "make",
+            f"DESTDIR={args.install_dir}",
+            "install",
+        ],
+        cwd=source_dir,
+        env=env,
+    )
 
     builder.create_package(args)
