@@ -26,7 +26,7 @@ build Python.
 git clone https://github.com/tst-race/ext-builder.git
 git clone https://github.com/tst-race/ext-python.git
 ./ext-builder/build.py \
-    --target linux-x86_64 \
+    --target android-x86_64 \
     ./ext-python
 ```
 

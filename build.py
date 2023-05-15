@@ -25,10 +25,10 @@ import os
 import race_ext_builder as builder
 
 
-def get_cli_arguments():
+def get_cli_arguments(name):
     """Parse command-line arguments to the script"""
     parser = builder.get_arg_parser(
-        "python",
+        name,
         "3.7.16",
         1,
         __file__,
@@ -46,11 +46,21 @@ def get_cli_arguments():
         help="Version of OpenSSL dependency",
         type=str,
     )
+    parser.add_argument(
+        "--skip-python-lib",
+        action="store_true",
+        help="Skip building of Python library",
+    )
+    parser.add_argument(
+        "--skip-python-packages",
+        action="store_true",
+        help="Skip building of Python packages",
+    )
     return builder.normalize_args(parser.parse_args())
 
 
-if __name__ == "__main__":
-    args = get_cli_arguments()
+def build_python_lib():
+    args = get_cli_arguments("python")
     builder.make_dirs(args)
     builder.setup_logger(args)
 
@@ -91,6 +101,10 @@ if __name__ == "__main__":
             ("openssl", args.openssl_version),
         ],
     )
+
+    if args.skip_python_lib:
+        logging.root.info("Skipping build of Python library")
+        return args.install_dir
 
     builder.fetch_source(
         args=args,
@@ -166,3 +180,63 @@ if __name__ == "__main__":
     )
 
     builder.create_package(args)
+    return args.install_dir
+
+
+def build_python_packages(py_lib_dir):
+    args = get_cli_arguments("python-packages")
+    builder.make_dirs(args)
+    builder.setup_logger(args)
+
+    if args.skip_python_packages:
+        logging.root.info("Skipping build of Python packages")
+        return
+
+    builder.install_packages(
+        args,
+        ["python3-pip"],
+    )
+
+    if args.target == builder.TARGET_ANDROID_x86_64:
+        target_host = "x86_64-linux-android"
+    elif args.target == builder.TARGET_ANDROID_arm64_v8a:
+        target_host = "aarch64-linux-android"
+
+    env = builder.create_standard_envvars(args)
+    env["ANDROID_LIBRARY_DIRS"] = f"{args.install_prefix}/lib:{os.environ['ANDROID_NDK']}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/{target_host}/29"
+    env["ANDROID_INCLUDE_DIRS"] = f"{args.install_prefix}/include:{py_lib_dir}/include/python3.7m"
+    env["LDSHARED"] = f"{env['CC']} --shared"
+    env["PKG_CONFIG_PATH"] = f"{args.install_prefix}/lib/pkgconfig"
+
+    logging.root.info("Copying standard python packages")
+    builder.execute(args, ["rm", "-r", args.install_dir])
+    builder.copy(args, os.path.join(py_lib_dir, "lib/python3.7"), args.install_dir)
+
+    logging.root.info("Installing python packages from pip")
+    builder.execute(args, ["python3", "-m", "pip", "install", "--upgrade", "pip"])
+    builder.execute(args, [
+        "python3",
+        "-m",
+        "pip",
+        "download",
+        "--requirement",
+        os.path.join(args.code_dir, "requirements.txt"),
+        "--dest",
+        args.install_dir,
+        "--platform",
+        target_host,
+        "--no-deps",
+    ])
+
+    logging.root.info("Building Python packages")
+    builder.execute(args, [
+        "bash",
+        os.path.join(args.code_dir, "build_python_packages.sh"),
+    ], cwd=args.install_dir, env=env)
+
+    builder.create_package(args)
+
+
+if __name__ == "__main__":
+    py_lib_dir = build_python_lib()
+    build_python_packages(py_lib_dir)
