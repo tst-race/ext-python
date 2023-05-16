@@ -30,7 +30,7 @@ def get_cli_arguments(name):
     parser = builder.get_arg_parser(
         name,
         "3.7.16",
-        1,
+        2,
         __file__,
         [builder.TARGET_ANDROID_x86_64, builder.TARGET_ANDROID_arm64_v8a],
     )
